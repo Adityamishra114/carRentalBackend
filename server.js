@@ -19,9 +19,15 @@ app.use(fileUpload({ createParentPath: true }));
 app.use(express.static("public"));
 
 app.use(express.urlencoded({ extended: true }));
+
+const CLIENT_URL =
+  process.env.NODE_ENV === "production"
+    ? process.env.CLIENT_URL_PROD
+    : process.env.CLIENT_URL_DEV;
+
 app.use(
   cors({
-    origin:  process.env.CLIENT_URL,
+    origin: CLIENT_URL,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
@@ -38,8 +44,6 @@ app.get("/", (req, res) => {
 app.use("/api/user", userRouter);
 app.use("/api/car", carRouter);
 app.use("/api/decor", decorRouter);
-
-
 
 if (process.env.NODE_ENV === "production") {
   app.use(express.static(path.join(__dirname, "/client/dist")));
