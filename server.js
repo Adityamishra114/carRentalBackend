@@ -7,9 +7,6 @@ import carRouter from "./routes/carRoute.js";
 import fileUpload from "express-fileupload";
 import { v2 as cloudinary } from "cloudinary";
 import decorRouter from "./routes/decorRoute.js";
-import path from "path";
-
-
 
 // app config
 const app = express();
@@ -37,6 +34,7 @@ app.use(
     credentials: true,
   })
 );
+console.log(`CORS Origin: ${CLIENT_URL}`);
 app.options("*", cors());
 
 // db connection
@@ -49,13 +47,7 @@ app.use("/api/user", userRouter);
 app.use("/api/car", carRouter);
 app.use("/api/decor", decorRouter);
 
-if (process.env.NODE_ENV === "production") {
-  app.use(express.static(path.join(__dirname, "/client/dist")));
 
-  app.get("*", (req, res) => {
-    res.sendFile(path.resolve(__dirname, "client", "dist", "index.html"));
-  });
-}
 
 cloudinary.config({
   cloud_name: process.env.APP_CLOUDINARY_CLOUD_NAME,
