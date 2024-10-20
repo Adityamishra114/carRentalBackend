@@ -7,6 +7,10 @@ import carRouter from "./routes/carRoute.js";
 import fileUpload from "express-fileupload";
 import { v2 as cloudinary } from "cloudinary";
 import decorRouter from "./routes/decorRoute.js";
+import path from "path";
+
+
+
 // app config
 const app = express();
 const PORT = process.env.PORT || 5000;
