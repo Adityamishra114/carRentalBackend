@@ -64,6 +64,6 @@ app.use((err, req, res, next) => {
     message,
   });
 });
-app.listen(port, () => {
-  console.log(`Server running on http://localhost:${port}`);
+app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
 });
