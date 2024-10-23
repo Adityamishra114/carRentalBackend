@@ -44,20 +44,8 @@ const DecorationSchema = new mongoose.Schema(
         default: null,
       },
     },
-    photos: [
-      {
-        url: {
-          type: String,
-          required: true,
-        },
-      },
-    ],
-    videos: [
-      {
-        type: String,
-        required: true,
-      },
-    ],
+    photos: { type: [String], required: true },
+    videos: { type: [String], required: true },
     typeOfDecoration: {
       type: String,
       enum: ["Churches", "Halls", "Cars", "Chair Covers", "LED Signs"],

@@ -13,13 +13,14 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 //middleware
-app.use(express.json());
+// app.use(express.json());
 
-app.use(fileUpload({ createParentPath: true }));
+// app.use(fileUpload({ createParentPath: true }));
 
 app.use(express.static("public"));
+app.use(express.json({ limit: '20mb' }));
+app.use(express.urlencoded({ limit: '20mb', extended: true }));
 
-app.use(express.urlencoded({ extended: true }));
 
 const CLIENT_URL =
   process.env.NODE_ENV === "production"

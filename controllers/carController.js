@@ -2,8 +2,11 @@ import Car from "../models/CarModel.js";
 import fs from "fs";
 import path from "path";
 import { validationResult } from "express-validator";
-import { v2 as cloudinary } from "cloudinary";
-import { errorHandler } from '../utils/error.js';
+import { errorHandler } from "../utils/error.js";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const createCar = async (req, res, next) => {
   console.log("Controller - Files received:", req.files);
@@ -13,7 +16,6 @@ const createCar = async (req, res, next) => {
     if (!errors.isEmpty()) {
       return res.status(400).json({ success: false, errors: errors.array() });
     }
-
     const {
       title,
       owner,
@@ -34,46 +36,29 @@ const createCar = async (req, res, next) => {
     const validPhotos = [];
     const validVideos = [];
 
-    const uploadToCloudinary = (file, resourceType) => {
-      return new Promise((resolve, reject) => {
-        const stream = cloudinary.uploader.upload_stream(
-          { resource_type: resourceType },
-          (error, result) => {
-            if (error) {
-              console.error(`Error uploading ${resourceType}:`, error);
-              reject(new Error(`Error uploading ${resourceType}`));
-            } else {
-              resolve(result.secure_url);
-            }
-          }
-        );
-        stream.end(file.buffer);
-      });
-    };
+    const baseUrl = process.env.NODE_ENV === 'production' 
+      ? process.env.BASE_URL_PROD 
+      : process.env.BASE_URL_DEV;
 
-    // Handle image uploads
     if (req.files?.photos && req.files.photos.length > 0) {
-      const photoPromises = req.files.photos.map((file) =>
-        uploadToCloudinary(file, "image")
-      );
-      const photoUrls = await Promise.all(photoPromises);
-      photoUrls.forEach((url) => validPhotos.push({ url }));
+      validPhotos.push(
+        ...req.files.photos.map((file) => `${baseUrl}/uploads/photos/${file.filename}`) 
+      ); 
+    }
+    if (req.files?.videos && req.files.videos.length > 0) {
+      validVideos.push(
+        ...req.files.videos.map((file) => `${baseUrl}/uploads/videos/${file.filename}`) 
+      ); 
     }
 
-    // Handle video uploads
-    if (req.files?.videos && req.files.videos.length > 0) {
-      const videoPromises = req.files.videos.map((file) =>
-        uploadToCloudinary(file, "video")
-      );
-      const videoUrls = await Promise.all(videoPromises);
-      videoUrls.forEach((url) => validVideos.push({ url }));
-    }
+    console.log("valid photos", validPhotos);
+    console.log("valid videos", validVideos);
 
     const newCar = new Car({
       title,
       owner,
-      photos: validPhotos,
-      videos: validVideos,
+      photos: validPhotos, 
+      videos: validVideos, 
       yearOfProduction,
       color,
       typeOfCar,
@@ -85,16 +70,15 @@ const createCar = async (req, res, next) => {
       rentalDuration,
       specialOptionsForWedding,
       description,
-      isVerified: isVerified === "true",
+      isVerified: isVerified === "true", 
     });
-
-    const savedCar = await newCar.save();
-    res.status(201).json({ success: true, car: savedCar });
-
+    const savedCar = await newCar.save(); 
+    res.status(201).json({ success: true, car: savedCar }); 
   } catch (error) {
-    next(error);
+    next(error); 
   }
 };
+
 
 const getCarDetails = async (req, res, next) => {
   try {
@@ -103,9 +87,19 @@ const getCarDetails = async (req, res, next) => {
       return res.status(400).json({ success: false, errors: errors.array() });
     }
 
-    const page = parseInt(req.query.page) || 1; 
-    const limit = parseInt(req.query.limit) || 10; 
-    const skip = (page - 1) * limit; 
+    const { id } = req.params; 
+    if (id) {
+      const car = await Car.findById(id);
+      if (!car) {
+        return res.status(404).json({ success: false, message: "Car not found" });
+      }
+
+      return res.status(200).json({ success: true, car });
+    }
+
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
 
     const { location, typeOfCar, color, additionalAmenities } = req.query;
 
@@ -114,28 +108,30 @@ const getCarDetails = async (req, res, next) => {
       filter.location = location;
     }
     if (typeOfCar) {
-      filter.typeOfCar = typeOfCar; 
+      filter.typeOfCar = typeOfCar;
     }
     if (color) {
-      filter.color = color; 
+      filter.color = color;
     }
     if (additionalAmenities) {
-      filter.additionalAmenities = { $all: additionalAmenities.split(',').map(item => item.trim()) };
+      filter.additionalAmenities = {
+        $all: additionalAmenities.split(",").map((item) => item.trim()),
+      };
     }
 
-    const totalCars = await Car.countDocuments(filter); 
+    const totalCars = await Car.countDocuments(filter);
     const cars = await Car.find(filter)
-      .sort({ createdAt: -1 }) 
+      .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(limit); 
+      .limit(limit);
 
     if (!cars || cars.length === 0) {
       return res.status(404).json({ success: false, message: "No cars found" });
     }
 
-    const totalPages = Math.ceil(totalCars / limit); 
-    const startItem = skip + 1; 
-    const endItem = Math.min(skip + limit, totalCars); 
+    const totalPages = Math.ceil(totalCars / limit);
+    const startItem = skip + 1;
+    const endItem = Math.min(skip + limit, totalCars);
 
     res.status(200).json({
       success: true,
@@ -145,98 +141,146 @@ const getCarDetails = async (req, res, next) => {
         totalPages,
         currentPage: page,
         limit,
-        itemRange: `${startItem}-${endItem}`, 
+        itemRange: `${startItem}-${endItem}`,
       },
     });
   } catch (error) {
     console.error("Error fetching car details:", error);
-    next(errorHandler(500, error.message)); 
+    next(errorHandler(500, error.message));
   }
 };
 
-const editCar = async (req, res, next) => {
-  const { id } = req.params; 
+const getCarById = async (req, res, next) => {
   try {
-    const car = await Car.findById(id); 
+    const { id } = req.params;
+    const car = await Car.findById(id);
     if (!car) {
       return res.status(404).json({ success: false, message: "Car not found" });
     }
-
-    if (req.files.photos) {
-      car.photos.forEach((photo) => {
-        fs.unlink(path.join(__dirname, "..", photo.url), (err) => {
-          if (err) console.error(err);
-        });
-      });
-      car.photos = req.files.photos.map((file) => ({
-        url: file.path,
-        description: null, 
-      }));
-    }
-
-    // Handle videos
-    if (req.files.videos) {
-      // Delete old videos from server if necessary
-      car.videos.forEach((video) => {
-        fs.unlink(path.join(__dirname, "..", video.url), (err) => {
-          if (err) console.error(err);
-        });
-      });
-
-      // Update videos with new files
-      car.videos = req.files.videos.map((file) => ({
-        url: file.path,
-        description: null, // Similar to photos, you can modify as needed
-      }));
-    }
-
-    // Update other car details
-    car.title = req.body.title || car.title;
-    car.owner = req.body.owner || car.owner;
-    car.yearOfProduction = req.body.yearOfProduction || car.yearOfProduction;
-    car.color = req.body.color || car.color;
-    car.interior = req.body.interior || car.interior;
-    car.numberOfSeats = req.body.numberOfSeats || car.numberOfSeats;
-    car.additionalAmenities =
-      req.body.additionalAmenities || car.additionalAmenities;
-    car.rentalPrice = req.body.rentalPrice || car.rentalPrice;
-    car.location = req.body.location || car.location;
-    car.rentalDuration = req.body.rentalDuration || car.rentalDuration;
-    car.specialOptionsForWedding =
-      req.body.specialOptionsForWedding || car.specialOptionsForWedding;
-    car.description = req.body.description || car.description;
-    car.isVerified =
-      req.body.isVerified !== undefined ? req.body.isVerified : car.isVerified;
-
-    const updatedCar = await car.save();
-    res.status(200).json({ success: true, car: updatedCar });
+    res.status(200).json({ success: true, car });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-const deleteCar = async (req, res, next) => {
-  const { id } = req.params; 
-  console.log("Car ID to delete:", id);
-  
-  try {
-    const car = await Car.findById(id);
-    if (!car) {
-      return next(errorHandler(404, "Car not found")); 
-    }
-    car.photos.forEach((photo) => {
-      fs.unlink(path.join(__dirname, "..", photo.url), (err) => {
-        if (err) console.error("Error deleting photo:", err);
-      });
-    });
-
-    await Car.findByIdAndDelete(id);
-    res.status(200).json({ success: true, message: "Car deleted successfully" });
-  } catch (error) {
-    console.error("Error deleting car:", error); 
+    console.error("Error fetching car by ID:", error);
     next(errorHandler(500, error.message));
   }
 };
 
 
-export { createCar, getCarDetails, editCar, deleteCar };
+const editCar = async (req, res, next) => {
+  const { id } = req.params;
+  console.log('Editing car with ID:', id);
+
+  try {
+    const car = await Car.findById(id);
+    if (!car) {
+      return res.status(404).json({ success: false, message: "Car not found" });
+    }
+
+    const baseUrl = process.env.NODE_ENV === 'production' 
+      ? process.env.BASE_URL_PROD 
+      : process.env.BASE_URL_DEV;
+
+    const deleteFiles = async (existingFiles) => {
+      await Promise.all(existingFiles.map(async (file) => {
+        try {
+          await fs.unlink(path.join(__dirname, "..", file.url));
+          console.log(`Deleted file: ${file.url}`);
+        } catch (err) {
+          console.error(`Error deleting file ${file.url}:`, err);
+        }
+      }));
+    };
+
+    const updateFields = {
+      ...req.body, 
+    };
+    if (req.files) {
+      const validPhotos = [];
+      const validVideos = [];
+
+      if (req.files.photos && Array.isArray(req.files.photos)) {
+ 
+        await deleteFiles(car.photos || []);
+
+        validPhotos.push(
+          ...req.files.photos.map((file) => `${baseUrl}/uploads/photos/${file.filename}`)
+        );
+        updateFields.photos = validPhotos; 
+      }
+
+      if (req.files.videos && Array.isArray(req.files.videos)) {
+
+        await deleteFiles(car.videos || []);
+
+        validVideos.push(
+          ...req.files.videos.map((file) => `${baseUrl}/uploads/videos/${file.filename}`)
+        );
+        updateFields.videos = validVideos; 
+      }
+    }
+
+    const updatedCar = await Car.findByIdAndUpdate(id, updateFields, { new: true });
+
+    const allCars = await Car.find({}).sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      car: updatedCar,
+      cars: allCars,
+    });
+  } catch (error) {
+    console.error("Error editing decor:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+
+
+const deleteCar = async (req, res, next) => {
+  const { id } = req.params;
+  console.log("Car ID to delete:", id);
+
+  try {
+    const car = await Car.findById(id);
+    if (!car) {
+      return next(errorHandler(404, "Car not found"));
+    }
+    const baseDir = path.join(__dirname, "../uploads");
+
+    if (car.photos && car.photos.length > 0) {
+      car.photos.forEach((photoUrl) => {
+        const photoFileName = path.basename(photoUrl);
+        const photoPath = path.join(baseDir, "photos", photoFileName);
+
+        fs.unlink(photoPath, (err) => {
+          if (err) {
+            console.error("Error deleting photo:", err);
+          } else {
+            console.log("Photo deleted:", photoPath);
+          }
+        });
+      });
+    }
+    if (car.videos && car.videos.length > 0) {
+      car.videos.forEach((videoUrl) => {
+        const videoFileName = path.basename(videoUrl);
+        const videoPath = path.join(baseDir, "videos", videoFileName);
+
+        fs.unlink(videoPath, (err) => {
+          if (err) {
+            console.error("Error deleting video:", err);
+          } else {
+            console.log("Video deleted:", videoPath);
+          }
+        });
+      });
+    }
+    await Car.findByIdAndDelete(id);
+    res.status(200).json({ success: true, message: "Car and associated files deleted successfully" });
+
+  } catch (error) {
+    console.error("Error deleting Car:", error);
+    next(errorHandler(500, error.message));
+  }
+};
+
+export { createCar, getCarDetails, editCar, deleteCar,getCarById };

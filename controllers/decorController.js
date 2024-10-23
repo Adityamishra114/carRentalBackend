@@ -2,10 +2,12 @@ import Decor from "../models/DecorationModel.js"
 import fs from "fs";
 import path from "path";
 import { validationResult } from "express-validator";
-import { v2 as cloudinary } from "cloudinary";
 import { errorHandler } from '../utils/error.js';
+import { fileURLToPath } from "url";
 
-const createDecor = async (req, res) => {
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const createDecor = async (req, res,next) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -20,44 +22,27 @@ const createDecor = async (req, res) => {
       isVerified,
     } = req.body;
 
-   
     const validPhotos = [];
     const validVideos = [];
 
-    const uploadToCloudinary = (file, resourceType) => {
-      return new Promise((resolve, reject) => {
-        const stream = cloudinary.uploader.upload_stream(
-          { resource_type: resourceType },
-          (error, result) => {
-            if (error) {
-              console.error(`Error uploading ${resourceType}:`, error);
-              reject(new Error(`Error uploading ${resourceType}`));
-            } else {
-              resolve(result.secure_url);
-            }
-          }
-        );
-        stream.end(file.buffer);
-      });
-    };
+    const baseUrl = process.env.NODE_ENV === 'production' 
+    ? process.env.BASE_URL_PROD 
+    : process.env.BASE_URL_DEV;
 
-    // Handle image uploads
-    if (req.files?.photos && req.files.photos.length > 0) {
-      const photoPromises = req.files.photos.map((file) =>
-        uploadToCloudinary(file, "image")
-      );
-      const photoUrls = await Promise.all(photoPromises);
-      photoUrls.forEach((url) => validPhotos.push({ url }));
-    }
+  if (req.files?.photos && req.files.photos.length > 0) {
+    validPhotos.push(
+      ...req.files.photos.map((file) => `${baseUrl}/uploads-decor/photos/${file.filename}`) 
+    ); 
+  }
 
-    // Handle video uploads
-    if (req.files?.videos && req.files.videos.length > 0) {
-      const videoPromises = req.files.videos.map((file) =>
-        uploadToCloudinary(file, "video")
-      );
-      const videoUrls = await Promise.all(videoPromises);
-      videoUrls.forEach((url) => validVideos.push({ url }));
-    }
+  if (req.files?.videos && req.files.videos.length > 0) {
+    validVideos.push(
+      ...req.files.videos.map((file) => `${baseUrl}/uploads-decor/videos/${file.filename}`) 
+    ); 
+  }
+
+  console.log("valid photos", validPhotos);
+  console.log("valid videos", validVideos);
 
     const newDecor = new Decor({
       title,
@@ -81,6 +66,16 @@ const getDecorDetails = async (req, res,next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ success: false, errors: errors.array() });
+    }
+
+    const { id } = req.params; 
+    if (id) {
+      const decor = await Decor.findById(id);
+      if (!decor) {
+        return res.status(404).json({ success: false, message: "Decoration not found" });
+      }
+
+      return res.status(200).json({ success: true, decor });
     }
 
     const page = parseInt(req.query.page) || 1; 
@@ -127,35 +122,130 @@ const getDecorDetails = async (req, res,next) => {
     next(errorHandler(500, error.message)); 
   }
 };
-const editDecor = async (req, res,next) => {};
+const getDecorById = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const decor = await Decor.findById(id);
+    if (!decor) {
+      return res.status(404).json({ success: false, message: "Decoration not found" });
+    }
+    res.status(200).json({ success: true, decor });
+  } catch (error) {
+    console.error("Error fetching decor by ID:", error);
+    next(errorHandler(500, error.message));
+  }
+};
+
+const editDecor = async (req, res, next) => {
+  const { id } = req.params;
+  console.log('Editing decor with ID:', id);
+
+  try {
+    const decor = await Decor.findById(id);
+    if (!decor) {
+      return res.status(404).json({ success: false, message: "Decor not found" });
+    }
+
+    const baseUrl = process.env.NODE_ENV === 'production' 
+      ? process.env.BASE_URL_PROD 
+      : process.env.BASE_URL_DEV;
+
+    const deleteFiles = async (existingFiles) => {
+      await Promise.all(existingFiles.map(async (file) => {
+        try {
+          await fs.unlink(path.join(__dirname, "..", file.url));
+          console.log(`Deleted file: ${file.url}`);
+        } catch (err) {
+          console.error(`Error deleting file ${file.url}:`, err);
+        }
+      }));
+    };
+
+    const updateFields = {
+      ...req.body, 
+    };
+    if (req.files) {
+      const validPhotos = [];
+      const validVideos = [];
+
+      if (req.files.photos && Array.isArray(req.files.photos)) {
+ 
+        await deleteFiles(decor.photos || []);
+
+        validPhotos.push(
+          ...req.files.photos.map((file) => `${baseUrl}/uploads-decor/photos/${file.filename}`)
+        );
+        updateFields.photos = validPhotos; 
+      }
+
+      if (req.files.videos && Array.isArray(req.files.videos)) {
+
+        await deleteFiles(decor.videos || []);
+
+        validVideos.push(
+          ...req.files.videos.map((file) => `${baseUrl}/uploads-decor/videos/${file.filename}`)
+        );
+        updateFields.videos = validVideos; 
+      }
+    }
+
+    const updatedDecor = await Decor.findByIdAndUpdate(id, updateFields, { new: true });
+
+    const allDecors = await Decor.find({}).sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      decor: updatedDecor,
+      decors: allDecors,
+    });
+  } catch (error) {
+    console.error("Error editing decor:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+
 const deleteDecor = async (req, res, next) => {
   const { id } = req.params;
   console.log("Decor ID to delete:", id);
-  
+
   try {
-    // Find the decor by ID
     const decor = await Decor.findById(id);
     if (!decor) {
       return next(errorHandler(404, "Decor not found"));
     }
+    const baseDir = path.join(__dirname, "../uploads-decor");
 
-    // Delete photos associated with the decor
-    decor.photos.forEach((photo) => {
-      const photoPath = path.join(__dirname, "..", photo.url);
-      fs.unlink(photoPath, (err) => {
-        if (err) {
-          console.error("Error deleting photo:", err);
-        } else {
-          console.log("Photo deleted:", photo.url);
-        }
+    if (decor.photos && decor.photos.length > 0) {
+      decor.photos.forEach((photoUrl) => {
+        const photoFileName = path.basename(photoUrl);
+        const photoPath = path.join(baseDir, "photos", photoFileName);
+
+        fs.unlink(photoPath, (err) => {
+          if (err) {
+            console.error("Error deleting photo:", err);
+          } else {
+            console.log("Photo deleted:", photoPath);
+          }
+        });
       });
-    });
+    }
+    if (decor.videos && decor.videos.length > 0) {
+      decor.videos.forEach((videoUrl) => {
+        const videoFileName = path.basename(videoUrl);
+        const videoPath = path.join(baseDir, "videos", videoFileName);
 
-    // Delete the decor record from the database
+        fs.unlink(videoPath, (err) => {
+          if (err) {
+            console.error("Error deleting video:", err);
+          } else {
+            console.log("Video deleted:", videoPath);
+          }
+        });
+      });
+    }
     await Decor.findByIdAndDelete(id);
-
-    // Send success response
-    res.status(200).json({ success: true, message: "Decoration deleted successfully" });
+    res.status(200).json({ success: true, message: "Decoration and associated files deleted successfully" });
 
   } catch (error) {
     console.error("Error deleting decor:", error);
@@ -164,4 +254,4 @@ const deleteDecor = async (req, res, next) => {
 };
 
 
-export { createDecor, getDecorDetails, editDecor, deleteDecor };
+export { createDecor, getDecorDetails, editDecor, deleteDecor,getDecorById };

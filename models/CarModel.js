@@ -43,22 +43,8 @@ const carSchema = new mongoose.Schema({
       default: null,
     },
   },
-  photos: [
-    {
-      url: { 
-        type: String, 
-        required: true,  
-      }
-    },
-  ],
-  videos: [
-    {
-      url: { 
-        type: String, 
-        required: true, 
-      },
-    },
-  ],
+  photos: { type: [String], required: true },
+  videos: { type: [String], required: true },
   yearOfProduction: {
     type: Number,
     required: [true, 'Year of production is required.'], 
