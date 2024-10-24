@@ -174,52 +174,41 @@ const editCar = async (req, res, next) => {
     if (!car) {
       return res.status(404).json({ success: false, message: "Car not found" });
     }
-
-    const baseUrl = process.env.NODE_ENV === 'production' 
-      ? process.env.BASE_URL_PROD 
-      : process.env.BASE_URL_DEV;
-
     const deleteFiles = async (existingFiles) => {
-      await Promise.all(existingFiles.map(async (file) => {
-        try {
-          await fs.unlink(path.join(__dirname, "..", file.url));
-          console.log(`Deleted file: ${file.url}`);
-        } catch (err) {
-          console.error(`Error deleting file ${file.url}:`, err);
-        }
-      }));
+      if (existingFiles && existingFiles.length > 0) {
+        await Promise.all(existingFiles.map(async (file) => {
+          try {
+            await fs.unlink(path.join(__dirname, "..", file.url));
+            console.log(`Deleted file: ${file.url}`);
+          } catch (err) {
+            console.error(`Error deleting file ${file.url}:`, err);
+          }
+        }));
+      }
     };
-
-    const updateFields = {
-      ...req.body, 
-    };
+    const updateFields = { ...req.body };
     if (req.files) {
       const validPhotos = [];
       const validVideos = [];
 
       if (req.files.photos && Array.isArray(req.files.photos)) {
- 
         await deleteFiles(car.photos || []);
-
         validPhotos.push(
-          ...req.files.photos.map((file) => `${baseUrl}/uploads/photos/${file.filename}`)
+          ...req.files.photos.map((file) => `/uploads/photos/${file.filename}`)
         );
         updateFields.photos = validPhotos; 
       }
 
       if (req.files.videos && Array.isArray(req.files.videos)) {
-
         await deleteFiles(car.videos || []);
-
         validVideos.push(
-          ...req.files.videos.map((file) => `${baseUrl}/uploads/videos/${file.filename}`)
+          ...req.files.videos.map((file) => `/uploads/videos/${file.filename}`)
         );
         updateFields.videos = validVideos; 
       }
     }
 
     const updatedCar = await Car.findByIdAndUpdate(id, updateFields, { new: true });
-
     const allCars = await Car.find({}).sort({ createdAt: -1 });
 
     res.status(200).json({
@@ -228,10 +217,11 @@ const editCar = async (req, res, next) => {
       cars: allCars,
     });
   } catch (error) {
-    console.error("Error editing decor:", error);
+    console.error("Error editing car:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
 
 
 
