@@ -29,7 +29,7 @@ const CLIENT_URL =
 
 app.use(
   cors({
-    origin:"*,
+    origin:"*",
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
