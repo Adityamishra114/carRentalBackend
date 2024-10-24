@@ -36,18 +36,18 @@ const createCar = async (req, res, next) => {
     const validPhotos = [];
     const validVideos = [];
 
-    const baseUrl = process.env.NODE_ENV === 'production' 
-      ? process.env.BASE_URL_PROD 
-      : process.env.BASE_URL_DEV;
+    // const baseUrl = process.env.NODE_ENV === 'production' 
+    //   ? process.env.BASE_URL_PROD 
+    //   : process.env.BASE_URL_DEV;
 
     if (req.files?.photos && req.files.photos.length > 0) {
       validPhotos.push(
-        ...req.files.photos.map((file) => `${baseUrl}/uploads/photos/${file.filename}`) 
+        ...req.files.photos.map((file) => `/uploads/photos/${file.filename}`) 
       ); 
     }
     if (req.files?.videos && req.files.videos.length > 0) {
       validVideos.push(
-        ...req.files.videos.map((file) => `${baseUrl}/uploads/videos/${file.filename}`) 
+        ...req.files.videos.map((file) => `/uploads/videos/${file.filename}`) 
       ); 
     }
 

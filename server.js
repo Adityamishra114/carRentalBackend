@@ -1,3 +1,4 @@
+import path from "path"
 import express from "express";
 import cors from "cors";
 import { connectDB } from "./config/DB.js";
@@ -7,6 +8,11 @@ import carRouter from "./routes/carRoute.js";
 import fileUpload from "express-fileupload";
 import { v2 as cloudinary } from "cloudinary";
 import decorRouter from "./routes/decorRoute.js";
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 
 // app config
 const app = express();
@@ -48,7 +54,14 @@ app.use("/api/user", userRouter);
 app.use("/api/car", carRouter);
 app.use("/api/decor", decorRouter);
 
-
+app.get('/uploads/:path/:file', (req, res) => {
+  console.log('/uploads/', req.params.path, req.params.file);
+  res.sendFile(path.join(__dirname, '/uploads/', req.params.path, req.params.file));
+});
+app.get('/uploads-decor/:path/:file', (req, res) => {
+  console.log('/uploads-decor/', req.params.path, req.params.file);
+  res.sendFile(path.join(__dirname, '/uploads-decor/', req.params.path, req.params.file));
+});
 
 cloudinary.config({
   cloud_name: process.env.APP_CLOUDINARY_CLOUD_NAME,
