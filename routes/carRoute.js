@@ -9,6 +9,6 @@ const carRouter = express.Router();
 carRouter.post("/create-car",verifyUser,uploadFiles, createCar);
 carRouter.get('/cars', getCarDetails)
 carRouter.get('/car/:id', getCarById);
-carRouter.put("/edit-car/:id",verifyUser, editCar);
+carRouter.put("/edit-car/:id",verifyUser,uploadFiles, editCar);
 carRouter.delete("/remove-car/:id",verifyUser, deleteCar);
 export default carRouter;
