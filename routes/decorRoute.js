@@ -9,6 +9,6 @@ const decorRouter = express.Router();
 decorRouter.post("/create-decorations",verifyUser,uploadFiles, createDecor);
 decorRouter.get('/decorations-lists', getDecorDetails)
 decorRouter.get('/decoration/:id', getDecorById);
-decorRouter.put("/edit-decorations/:id",verifyUser, editDecor);
+decorRouter.put("/edit-decorations/:id",verifyUser,uploadFiles, editDecor);
 decorRouter.delete("/remove-decorations/:id",verifyUser, deleteDecor);
 export default decorRouter;
